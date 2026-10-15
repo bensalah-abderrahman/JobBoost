@@ -62,253 +62,314 @@ export class ApplicationsService {
   // ↓
   // Application READY_TO_VALIDATE
   // ============================================================
- async prepare(jobId: string) {
-  // ----------------------------------------------------------
-  // 1. OFFRE
-  // ----------------------------------------------------------
-  let job = await this.prisma.job.findUnique({
-    where: {
-      id: jobId,
-    },
-    include: {
-      analysis: true,
-    },
-  });
-
-  if (!job) {
-    throw new NotFoundException(
-      'Offre introuvable',
-    );
-  }
-
-  // ----------------------------------------------------------
-  // 2. ÉVITER LES DOUBLONS
-  //
-  // Si la candidature existe déjà :
-  // on ne recrée PAS un CV et une lettre.
-  // ----------------------------------------------------------
-  const existingApplication =
-    await this.prisma.application.findFirst({
-      where: {
-        jobId,
-        status: {
-          not: ApplicationStatus.ARCHIVED,
+  async prepare(
+    jobId: string,
+  ) {
+    // ----------------------------------------------------------
+    // 1. OFFRE
+    // ----------------------------------------------------------
+    let job =
+      await this.prisma.job.findUnique({
+        where: {
+          id: jobId,
         },
-      },
-      include: {
-        job: {
+        include: {
+          analysis: true,
+        },
+      });
+    if (!job) {
+      throw new NotFoundException(
+        'Offre introuvable',
+      );
+    }
+    // ----------------------------------------------------------
+    // 2. ÉVITER LES DOUBLONS
+    //
+    // Si la candidature existe déjà :
+    // on ne recrée PAS un CV et une lettre.
+    // ----------------------------------------------------------
+    const existingApplication =
+      await this.prisma.application.findFirst({
+        where: {
+          jobId,
+          status: {
+            not:
+              ApplicationStatus.ARCHIVED,
+          },
+        },
+        include: {
+          job: {
+            include: {
+              analysis: true,
+            },
+          },
+          resume: true,
+          coverLetter: true,
+        },
+      });
+    if (
+      existingApplication &&
+      existingApplication.status !==
+        ApplicationStatus.DRAFT &&
+      existingApplication.status !==
+        ApplicationStatus.READY_TO_VALIDATE &&
+      existingApplication.status !==
+        ApplicationStatus.FAILED
+    ) {
+      return {
+        alreadyPrepared:
+          true,
+        message:
+          'Une candidature déjà avancée existe pour cette offre. Elle n’est pas régénérée automatiquement.',
+        application:
+          existingApplication,
+        resume:
+          existingApplication.resume,
+        coverLetter:
+          existingApplication.coverLetter,
+      };
+    }
+    // ----------------------------------------------------------
+    // 3. ANALYSE AUTOMATIQUE
+    //
+    // Si l'offre n'est pas encore analysée,
+    // JobBoost lance automatiquement l'analyse.
+    // ----------------------------------------------------------
+    if (!job.analysis) {
+      await this.jobAnalyzerService.analyze(
+        jobId,
+      );
+      job =
+        await this.prisma.job.findUnique({
+          where: {
+            id: jobId,
+          },
           include: {
             analysis: true,
           },
-        },
-        resume: true,
-        coverLetter: true,
-      },
-    });
-
-  if (existingApplication) {
-    return {
-      alreadyPrepared: true,
-
-      message:
-        'Une candidature existe déjà pour cette offre.',
-
-      application:
-        existingApplication,
-
-      resume:
-        existingApplication.resume,
-
-      coverLetter:
-        existingApplication.coverLetter,
-    };
-  }
-
-  // ----------------------------------------------------------
-  // 3. ANALYSE AUTOMATIQUE
-  //
-  // Si l'offre n'est pas encore analysée,
-  // JobBoost lance automatiquement l'analyse.
-  // ----------------------------------------------------------
-  if (!job.analysis) {
-    await this.jobAnalyzerService.analyze(
-      jobId,
-    );
-
-    job = await this.prisma.job.findUnique({
-      where: {
-        id: jobId,
-      },
-      include: {
-        analysis: true,
-      },
-    });
-
-    if (!job) {
-      throw new NotFoundException(
-        'Offre introuvable après analyse',
-      );
+        });
+      if (!job) {
+        throw new NotFoundException(
+          'Offre introuvable après analyse',
+        );
+      }
     }
-  }
-
-  // ----------------------------------------------------------
-  // 4. SÉCURITÉ ANALYSE
-  // ----------------------------------------------------------
-  if (!job.analysis) {
-    throw new BadRequestException(
-      "Impossible de préparer la candidature : l'analyse de l'offre est absente.",
-    );
-  }
-
-  // ----------------------------------------------------------
-  // 5. SCORE MINIMUM
-  //
-  // Une candidature ne peut être préparée
-  // que si le score est >= 50.
-  // ----------------------------------------------------------
-  const score =
-    job.analysis.score ?? 0;
-
-  if (score < 50) {
-    throw new BadRequestException(
-      `Score insuffisant : ${score}/100. Le score minimum requis est 50/100.`,
-    );
-  }
-
-  // ----------------------------------------------------------
-  // 6. VARIABLES POUR CLEANUP
-  //
-  // Si une étape échoue, on évite de laisser
-  // des CV / lettres orphelins en base.
-  // ----------------------------------------------------------
-  let generatedResumeId:
-    | string
-    | null = null;
-
-  let generatedCoverLetterId:
-    | string
-    | null = null;
-
-  try {
-    // --------------------------------------------------------
-    // 7. GÉNÉRATION CV
-    // --------------------------------------------------------
-    const resumeResult =
-      await this.resumeComposerService.generate(
-        jobId,
-      );
-
-    const resume =
-      resumeResult.resume;
-
-    if (!resume?.id) {
+    // ----------------------------------------------------------
+    // 4. SÉCURITÉ ANALYSE
+    // ----------------------------------------------------------
+    if (!job.analysis) {
       throw new BadRequestException(
-        'La génération du CV a échoué.',
+        "Impossible de préparer la candidature : l'analyse de l'offre est absente.",
       );
     }
-
-    generatedResumeId =
-      resume.id;
-
-    // --------------------------------------------------------
-    // 8. GÉNÉRATION LETTRE
-    // --------------------------------------------------------
-    const coverLetter =
-      await this.coverLetterService.generate(
-        jobId,
-        resume.id,
-      );
-
-    if (!coverLetter?.id) {
-      throw new BadRequestException(
-        'La génération de la lettre a échoué.',
-      );
-    }
-
-    generatedCoverLetterId =
-      coverLetter.id;
-
-    // --------------------------------------------------------
-    // 9. DÉTERMINER LE CANAL
-    // --------------------------------------------------------
-    const channel =
-      this.resolveChannel(
-        job.applicationMethod,
-        job.source,
-      );
-
-    // --------------------------------------------------------
-    // 10. CRÉATION APPLICATION
-    // --------------------------------------------------------
-    const application =
-      await this.create({
-        jobId: job.id,
-
-        resumeId:
+    // ----------------------------------------------------------
+    // 5. VARIABLES POUR CLEANUP
+    //
+    // Si une étape échoue, on évite de laisser
+    // des CV / lettres orphelins en base.
+    // ----------------------------------------------------------
+    let generatedResumeId:
+      | string
+      | null = null;
+    let generatedCoverLetterId:
+      | string
+      | null = null;
+    try {
+      // --------------------------------------------------------
+      // 6. GÉNÉRATION CV
+      // --------------------------------------------------------
+      const resumeResult =
+        await this.resumeComposerService.generate(
+          jobId,
+        );
+      const resume =
+        resumeResult.resume;
+      if (
+        !resume ||
+        !resume.id
+      ) {
+        throw new BadRequestException(
+          'La génération du CV a échoué.',
+        );
+      }
+      generatedResumeId =
+        resume.id;
+      // --------------------------------------------------------
+      // 7. GÉNÉRATION LETTRE
+      //
+      // Ton CoverLetterService contient déjà :
+      // - anti-hallucination
+      // - réparation
+      // - blocage si compétence interdite
+      // --------------------------------------------------------
+      const coverLetter =
+        await this.coverLetterService.generate(
+          jobId,
           resume.id,
-
-        coverLetterId:
-          coverLetter.id,
-
-        channel,
-
-        notes:
-          'Candidature préparée automatiquement par JobBoost AI.',
-      });
-
-    // --------------------------------------------------------
-    // 11. RÉPONSE
-    // --------------------------------------------------------
-    return {
-      alreadyPrepared: false,
-
-      message:
-        'Candidature préparée avec succès.',
-
-      score,
-
-      application,
-
-      resume,
-
-      coverLetter,
-    };
-  } catch (error) {
-    // --------------------------------------------------------
-    // CLEANUP LETTRE
-    // --------------------------------------------------------
-    if (generatedCoverLetterId) {
-      await this.prisma.coverLetter
-        .delete({
-          where: {
-            id: generatedCoverLetterId,
-          },
-        })
-        .catch(() => {
-          // On ignore volontairement
-          // les erreurs de cleanup.
-        });
+        );
+      if (
+        !coverLetter ||
+        !coverLetter.id
+      ) {
+        throw new BadRequestException(
+          'La génération de la lettre a échoué.',
+        );
+      }
+      generatedCoverLetterId =
+        coverLetter.id;
+      // --------------------------------------------------------
+      // 8. DÉTERMINER LE CANAL
+      // --------------------------------------------------------
+      const channel =
+        this.resolveChannel(
+          job.applicationMethod,
+          job.source,
+        );
+      // --------------------------------------------------------
+      // 9. CRÉATION APPLICATION
+      // --------------------------------------------------------
+      const previousResumeId =
+        existingApplication?.resumeId ??
+        null;
+      const previousCoverLetterId =
+        existingApplication?.coverLetterId ??
+        null;
+      const application =
+        existingApplication
+          ? await this.prisma.application.update({
+              where: {
+                id:
+                  existingApplication.id,
+              },
+              data: {
+                resumeId:
+                  resume.id,
+                coverLetterId:
+                  coverLetter.id,
+                channel,
+                notes:
+                  'Candidature régénérée automatiquement par JobBoost AI après mise à jour du profil.',
+                status:
+                  ApplicationStatus.READY_TO_VALIDATE,
+                appliedAt:
+                  null,
+              },
+              include: {
+                job: {
+                  include: {
+                    analysis:
+                      true,
+                  },
+                },
+                resume:
+                  true,
+                coverLetter:
+                  true,
+              },
+            })
+          : await this.create({
+              jobId:
+                job.id,
+              resumeId:
+                resume.id,
+              coverLetterId:
+                coverLetter.id,
+              channel,
+              notes:
+                'Candidature préparée automatiquement par JobBoost AI.',
+            });
+      if (
+        previousCoverLetterId &&
+        previousCoverLetterId !==
+          coverLetter.id
+      ) {
+        await this.prisma.coverLetter
+          .delete({
+            where: {
+              id:
+                previousCoverLetterId,
+            },
+          })
+          .catch(() => {
+            // Ancienne lettre déjà supprimée ou encore référencée.
+          });
+      }
+      if (
+        previousResumeId &&
+        previousResumeId !==
+          resume.id
+      ) {
+        await this.prisma.resume
+          .delete({
+            where: {
+              id:
+                previousResumeId,
+            },
+          })
+          .catch(() => {
+            // Ancien CV déjà supprimé ou encore référencé.
+          });
+      }
+      // --------------------------------------------------------
+      // 10. RÉPONSE
+      // --------------------------------------------------------
+      return {
+        alreadyPrepared:
+          false,
+        regenerated:
+          Boolean(
+            existingApplication,
+          ),
+        message:
+          existingApplication
+            ? 'Candidature régénérée avec le profil à jour.'
+            : 'Candidature préparée avec succès.',
+        score:
+          job.analysis.score,
+        application,
+        resume,
+        coverLetter,
+      };
+    } catch (error) {
+      // --------------------------------------------------------
+      // CLEANUP LETTRE
+      // --------------------------------------------------------
+      if (
+        generatedCoverLetterId
+      ) {
+        await this.prisma.coverLetter
+          .delete({
+            where: {
+              id:
+                generatedCoverLetterId,
+            },
+          })
+          .catch(() => {
+            // On ignore volontairement
+            // une erreur de cleanup.
+          });
+      }
+      // --------------------------------------------------------
+      // CLEANUP CV
+      // --------------------------------------------------------
+      if (
+        generatedResumeId
+      ) {
+        await this.prisma.resume
+          .delete({
+            where: {
+              id:
+                generatedResumeId,
+            },
+          })
+          .catch(() => {
+            // On ignore volontairement
+            // une erreur de cleanup.
+          });
+      }
+      throw error;
     }
-
-    // --------------------------------------------------------
-    // CLEANUP CV
-    // --------------------------------------------------------
-    if (generatedResumeId) {
-      await this.prisma.resume
-        .delete({
-          where: {
-            id: generatedResumeId,
-          },
-        })
-        .catch(() => {
-          // On ignore volontairement
-          // les erreurs de cleanup.
-        });
-    }
-
-    throw error;
   }
-}
   // ============================================================
   // CREATE APPLICATION
   // ============================================================
@@ -690,23 +751,9 @@ export class ApplicationsService {
       );
     }
     const method =
-  application.job.applicationMethod;
-const franceTravailUrl =
-  application.job.source ===
-    'FRANCE_TRAVAIL' &&
-  application.job.externalId
-    ? `https://candidat.francetravail.fr/offres/recherche/detail/${encodeURIComponent(
-        application.job.externalId,
-      )}`
-    : null;
-const url =
-  method ===
-    ApplicationMethod.FRANCE_TRAVAIL
-    ? franceTravailUrl ??
-      application.job.url ??
+      application.job.applicationMethod;
+    const url =
       application.job.applicationUrl ??
-      null
-    : application.job.applicationUrl ??
       application.job.url ??
       null;
     const isLegacyApprovedEmail =

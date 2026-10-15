@@ -1,0 +1,92 @@
+[
+  {
+    "name": "NLP",
+    "level": null,
+    "category": "Intelligence artificielle"
+  },
+  {
+    "name": "IA générative",
+    "level": 3,
+    "category": "Intelligence artificielle"
+  },
+  {
+    "name": "LLM",
+    "level": 3,
+    "category": "Intelligence artificielle"
+  },
+  {
+    "name": "LangChain",
+    "level": null,
+    "category": "Intelligence artificielle"
+  },
+  {
+    "name": "LangGraph",
+    "level": null,
+    "category": "Intelligence artificielle"
+  },
+  {
+    "name": "Prompt Engineering",
+    "level": 3,
+    "category": "Intelligence artificielle"
+  },
+  {
+    "name": "Chatbots et assistants IA",
+    "level": 3,
+    "category": "Intelligence artificielle"
+  },
+  {
+    "name": "RAG",
+    "level": 3,
+    "category": "Intelligence artificielle"
+  },
+  {
+    "name": "Azure OpenAI",
+    "level": null,
+    "category": "Cloud / IA"
+  },
+  {
+    "name": "Azure AI Search",
+    "level": null,
+    "category": "Cloud / IA"
+  },
+  {
+    "name": "Terraform",
+    "level": null,
+    "category": "DevOps"
+  },
+  {
+    "name": "Infrastructure as Code",
+    "level": null,
+    "category": "DevOps"
+  },
+  {
+    "name": "AI Engineering",
+    "level": null,
+    "category": "Intelligence artificielle"
+  },
+  {
+    "name": "MLOps",
+    "level": null,
+    "category": "DevOps / IA"
+  },
+  {
+    "name": "Industrialisation IA",
+    "level": null,
+    "category": "Intelligence artificielle"
+  },
+  {
+    "name": "Monitoring des applications IA",
+    "level": null,
+    "category": "DevOps / IA"
+  },
+  {
+    "name": "Ollama",
+    "level": 3,
+    "category": "Intelligence artificielle"
+  },
+  {
+    "name": "Agents IA",
+    "level": 3,
+    "category": "Intelligence artificielle"
+  }
+]

@@ -94,21 +94,15 @@ export class ResumeComposerService {
         // ==========================================================
         const selectedSkills = profile.skills
             .map((skill) => ({
-            skill,
-            score: this.scoreCandidateSkill(skill.name, targetSkills),
-        }))
-            .filter((item) => item.score > 0)
+                skill,
+                score: this.scoreCandidateSkill(skill.name, targetSkills),
+            }))
             .sort((a, b) => {
-            if (b.score !==
-                a.score) {
-                return (b.score -
-                    a.score);
-            }
-            return ((b.skill.level ?? 0) -
-                (a.skill.level ?? 0));
-        })
-            .slice(0, 14)
-            .map((item) => item.skill);
+                if (b.score !== a.score) return b.score - a.score;
+                return (b.skill.level ?? 0) - (a.skill.level ?? 0);
+            })
+            .slice(0, 12)
+            .map(({ skill }) => skill);
         // ==========================================================
         // 5. EXPÉRIENCES
         // ==========================================================
@@ -141,47 +135,71 @@ export class ResumeComposerService {
             relevantExperiences =
                 scoredExperiences.slice(0, 3);
         }
-        const finalExperiences = relevantExperiences.map(({ experience, }) => ({
-            id: experience.id,
-            company: experience.company,
-            title: experience.title,
-            location: experience.location,
-            startDate: experience.startDate
-                ?.toISOString() ??
-                null,
-            endDate: experience.endDate
-                ?.toISOString() ??
-                null,
-            current: experience.current,
-            description: experience.description,
-            bullets: this.selectRelevantBullets(experience.bullets, targetSkills),
-        }));
+        // Le matching choisit les expériences ; le CV les affiche par date.
+        // On trie APRES le scoring pour garder les plus récentes en premier.
+        relevantExperiences.sort((a, b) => {
+            const aDate = a.experience.startDate?.getTime() ?? 0;
+            const bDate = b.experience.startDate?.getTime() ?? 0;
+            if (aDate !== bDate) {
+                return bDate - aDate;
+            }
+            return Number(b.experience.current) - Number(a.experience.current);
+        });
+        const finalExperiences = relevantExperiences.map(({ experience, }) => {
+            const experienceText = this.normalizeText([
+                experience.company ?? '',
+                experience.title ?? '',
+                experience.description ?? '',
+            ].join(' '));
+            const isJobBoostExperience =
+                experienceText.includes('jobboost');
+            return {
+                id: experience.id,
+                company: experience.company,
+                title: experience.title,
+                location: experience.location,
+                startDate: experience.startDate
+                    ?.toISOString() ??
+                    null,
+                endDate: experience.endDate
+                    ?.toISOString() ??
+                    null,
+                current: experience.current,
+                description: experience.description,
+                bullets: isJobBoostExperience
+                    ? (experience.bullets ?? [])
+                    : this.selectRelevantBullets(
+                        experience.bullets,
+                        targetSkills,
+                    ),
+            };
+        });
         // ==========================================================
         // 6. PROJETS
         // ==========================================================
         const relevantProjects = profile.projects
+            // Évite de répéter JobBoost AI dans Projets s'il est déjà dans Expériences.
+            .filter((project) => !finalExperiences.some((experience) =>
+                this.normalizeText(experience.company ?? '').includes(this.normalizeText(project.name)) ||
+                (this.normalizeText(project.name).includes('jobboost') &&
+                 this.normalizeText(`${experience.company ?? ''} ${experience.title ?? ''}`).includes('jobboost'))
+            ))
             .map((project) => ({
-            project,
-            score: this.scoreProject(project, targetSkills),
-        }))
+                project,
+                score: this.scoreProject(project, targetSkills),
+            }))
             .filter((item) => item.score > 0)
-            .sort((a, b) => b.score -
-            a.score)
+            .sort((a, b) => b.score - a.score)
             .slice(0, 3)
-            .map(({ project, }) => ({
-            id: project.id,
-            name: project.name,
-            description: project.description,
-            technologies: project.technologies,
-            startDate: project.startDate
-                ?.toISOString() ??
-                null,
-            endDate: project.endDate
-                ?.toISOString() ??
-                null,
-            url: project.url ??
-                null,
-        }));
+            .map(({ project }) => ({
+                id: project.id,
+                name: project.name,
+                description: this.compactProjectDescription(project.description),
+                technologies: project.technologies,
+                startDate: project.startDate?.toISOString() ?? null,
+                endDate: project.endDate?.toISOString() ?? null,
+                url: project.url ?? null,
+            }));
         // ==========================================================
         // 7. FORMATIONS
         // ==========================================================
@@ -230,7 +248,19 @@ export class ResumeComposerService {
         // Ollama ne sélectionne PLUS tout le CV.
         // Il produit uniquement 2-3 phrases.
         // ==========================================================
-        const summary = await this.generateSummary(job, profile, selectedSkills, finalExperiences, resumeTitle);
+        const [summary, tailoredExperiences] = await Promise.all([
+  this.generateSummary(
+    job,
+    profile,
+    selectedSkills,
+    finalExperiences,
+    resumeTitle,
+  ),
+  this.tailorExperienceBullets(
+    job,
+    finalExperiences,
+  ),
+]);
         // ==========================================================
         // 9. CONTENT JSON
         // ==========================================================
@@ -261,7 +291,7 @@ export class ResumeComposerService {
                 category: skill.category,
                 level: skill.level,
             })),
-            experiences: finalExperiences,
+            experiences: tailoredExperiences,
             projects: relevantProjects,
             educations: finalEducations,
         };
@@ -296,8 +326,124 @@ export class ResumeComposerService {
     }
     // ============================================================
     // SUMMARY
+private async tailorExperienceBullets(
+  job: any,
+  experiences: any[],
+): Promise<any[]> {
+  if (!experiences.length || !process.env.OLLAMA_MODEL) {
+    return experiences;
+  }
+  const source = experiences.map((experience) => ({
+    id: experience.id,
+    title: experience.title,
+    company: experience.company,
+    description: experience.description,
+    bullets: experience.bullets ?? [],
+  }));
+  const prompt = `
+Tu personnalises les descriptions d'un CV pour une offre.
+Règles :
+- Utilise uniquement les faits présents dans les expériences.
+- Ne crée aucune compétence, technologie, mission ou résultat.
+- Ne change pas les entreprises, les postes ou les dates.
+- Reformule les bullets existants selon la pertinence.
+- Maximum 4 bullets par expérience.
+- Réponds uniquement avec du JSON.
+Offre :
+${JSON.stringify({
+  title: job.title,
+  description: (job.description ?? '').slice(0, 5000),
+  requiredSkills: job.analysis?.requiredSkills ?? [],
+  technologies: job.analysis?.technologies ?? [],
+})}
+Expériences :
+${JSON.stringify(source)}
+Format :
+{
+  "experiences": [
+    {
+      "id": "identifiant existant",
+      "bullets": ["description reformulée"]
+    }
+  ]
+}
+`;
+  try {
+    const response = await fetch(
+      `${process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434'}/api/chat`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(90000),
+        body: JSON.stringify({
+          model: process.env.OLLAMA_MODEL,
+          stream: false,
+          format: 'json',
+          think: false,
+          options: {
+            temperature: 0,
+            num_predict: 900,
+          },
+          messages: [
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+        }),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`Ollama HTTP ${response.status}`);
+    }
+    const data = (await response.json()) as {
+      message?: { content?: string };
+    };
+    const parsed = JSON.parse(data.message?.content ?? '{}') as {
+      experiences?: {
+        id: string;
+        bullets: string[];
+      }[];
+    };
+    return experiences.map((experience) => {
+      const result = parsed.experiences?.find(
+        (item) => item.id === experience.id,
+      );
+      // Version prudente : seuls les bullets source sont conservés.
+      // Les reformulations IA doivent être validées avant usage.
+      const proposed = Array.isArray(result?.bullets)
+        ? result.bullets.filter(
+            (bullet): bullet is string =>
+              typeof bullet === 'string' && !!bullet.trim(),
+          ).slice(0, 4)
+        : [];
+      return {
+        ...experience,
+        bullets: proposed.length > 0
+          ? proposed
+          : experience.bullets,
+      };
+    });
+  } catch (error) {
+    console.warn(
+      '[RESUME] Reformulation indisponible, conservation des expériences',
+      error,
+    );
+    return experiences;
+  }
+}
     // ============================================================
-    private async generateSummary(job: any, profile: any, selectedSkills: any[], experiences: any[], resumeTitle: string): Promise<string | null> {
+        // Raccourcit les projets sans modifier leurs faits.
+    private compactProjectDescription(description: string | null): string | null {
+        if (!description) return null;
+        const cleaned = description.replace(/\s+/g, ' ').trim();
+        const maxLength = 350;
+        if (cleaned.length <= maxLength) return cleaned;
+        const excerpt = cleaned.slice(0, maxLength);
+        const lastSpace = excerpt.lastIndexOf(' ');
+        return excerpt.slice(0, lastSpace > 250 ? lastSpace : maxLength).trim() + '…';
+    }
+private async generateSummary(job: any, profile: any, selectedSkills: any[], experiences: any[], resumeTitle: string): Promise<string | null> {
         const fallback = this.buildFallbackSummary(profile, selectedSkills, experiences, resumeTitle);
         const baseUrl = process.env
             .OLLAMA_BASE_URL ??
@@ -339,55 +485,30 @@ export class ResumeComposerService {
             },
         };
         const prompt = `
-
 Rédige le résumé professionnel d'un CV
-
 personnalisé pour cette offre.
-
 RÈGLES ABSOLUES :
-
 - français uniquement
-
 - 2 ou 3 phrases maximum
-
 - factuel
-
 - ATS-friendly
-
 - aucune invention
-
 - aucune nouvelle technologie
-
 - aucune nouvelle compétence
-
 - aucune nouvelle expérience
-
 - aucune durée d'expérience inventée
-
 - ne pas utiliser :
-
   "passionné"
-
   "expert"
-
   "expertise"
-
   "solide expérience"
-
   "vision stratégique"
-
 Utilise uniquement les données suivantes :
-
 ${JSON.stringify(compactData)}
-
 Retourne uniquement ce JSON :
-
 {
-
   "summary": ""
-
 }
-
 `.trim();
         try {
             const startedAt = Date.now();
@@ -1025,4 +1146,3 @@ Retourne uniquement ce JSON :
             .trim();
     }
 }
-
