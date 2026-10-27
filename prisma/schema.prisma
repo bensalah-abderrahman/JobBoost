@@ -11,10 +11,13 @@ datasource db {
 model CandidateProfile {
   id String @id @default(cuid())
 
+  userId String @unique @default("")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   firstName String
   lastName  String
 
-  email String? @unique
+  email String?
   phone String?
 
   location String?
@@ -113,6 +116,9 @@ model Project {
 model Job {
   id String @id @default(cuid())
 
+  userId String @default("")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   source     String
   externalId String
 
@@ -146,7 +152,8 @@ model Job {
   applicationUrl    String?
   contactEmail      String?
 
-  @@unique([source, externalId])
+  @@unique([userId, source, externalId], name: "source_externalId")
+  @@index([userId])
   @@index([source])
   @@index([title])
 }
@@ -179,6 +186,9 @@ model JobAnalysis {
 model Resume {
   id String @id @default(cuid())
 
+  userId String @default("")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   jobId String?
   job   Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
@@ -199,10 +209,14 @@ model Resume {
   applications Application[]
 
   @@index([jobId])
+  @@index([userId])
 }
 
 model CoverLetter {
   id String @id @default(cuid())
+
+  userId String @default("")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   jobId String
   job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
@@ -222,6 +236,7 @@ model CoverLetter {
 
   @@index([jobId])
   @@index([resumeId])
+  @@index([userId])
 }
 
 enum ApplicationStatus {
@@ -250,6 +265,9 @@ enum ApplicationMethod {
 model Application {
   id String @id @default(cuid())
 
+  userId String @default("")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   jobId String
   job   Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
@@ -272,4 +290,40 @@ model Application {
 
   @@unique([jobId])
   @@index([status])
+  @@index([userId])
+}
+
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  firstName String?
+  lastName  String?
+
+  emailVerifiedAt     DateTime?
+  verifyTokenHash     String?   @unique
+  verifyTokenExpires  DateTime?
+
+  sessions     Session[]
+  profile      CandidateProfile?
+  jobs         Job[]
+  resumes      Resume[]
+  coverLetters CoverLetter[]
+  applications Application[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }

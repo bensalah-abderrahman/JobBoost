@@ -1,11 +1,31 @@
 import {
   BadGatewayException,
+  ForbiddenException,
   Injectable,
 } from '@nestjs/common';
+
+import {
+  userContext,
+} from '../../prisma/prisma.service.js';
 
 @Injectable()
 export class AutomationService {
   async runFranceTravail() {
+    // La collecte tourne dans n8n pour le propriétaire de l'instance.
+    const owner =
+      process.env.ADMIN_EMAIL
+        ?.trim()
+        .toLowerCase();
+
+    if (
+      !owner ||
+      userContext.getStore()?.email !== owner
+    ) {
+      throw new ForbiddenException(
+        "La collecte automatique est réservée au propriétaire de l'application.",
+      );
+    }
+
     const webhookUrl =
       process.env.N8N_JOBBOOST_WEBHOOK_URL ??
       'http://localhost:5678/webhook/jobboost-morning';

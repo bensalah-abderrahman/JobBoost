@@ -83,6 +83,7 @@ export class JoobleService {
       const job = await this.prisma.job.upsert({
         where: {
           source_externalId: {
+            userId: this.prisma.currentUserId,
             source: 'JOOBLE',
             externalId,
           },

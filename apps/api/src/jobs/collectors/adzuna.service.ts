@@ -91,6 +91,7 @@ export class AdzunaService {
             const job = await this.prisma.job.upsert({
                 where: {
                     source_externalId: {
+                      userId: this.prisma.currentUserId,
                         source: 'ADZUNA',
                         externalId: String(offer.id),
                     },

@@ -51,6 +51,7 @@ export class JobsService {
       await this.prisma.job.findUnique({
         where: {
           source_externalId: {
+            userId: this.prisma.currentUserId,
             source,
             externalId,
           },
@@ -102,6 +103,7 @@ export class JobsService {
       await this.prisma.job.upsert({
         where: {
           source_externalId: {
+            userId: this.prisma.currentUserId,
             source,
             externalId,
           },

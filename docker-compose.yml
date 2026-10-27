@@ -39,10 +39,21 @@ services:
       JOBBOOST_API_URL: http://127.0.0.1:8080
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
       PUPPETEER_SKIP_DOWNLOAD: "true"
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
     volumes:
       - ./:/app
       - api_node_modules:/app/node_modules
       - api_app_node_modules:/app/apps/api/node_modules
+      - ${CANDIDATURES_DIR:-./candidatures}:/root/Documents/JobBoost/Candidatures
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,7 +72,7 @@ services:
       - "3000:3000"
     environment:
       NODE_ENV: development
-      NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_API_URL: /api
       INTERNAL_API_URL: http://api:8080
       WATCHPACK_POLLING: "true"
     volumes:
@@ -85,6 +96,7 @@ services:
       FT_CLIENT_ID: ${FT_CLIENT_ID}
       FT_CLIENT_SECRET: ${FT_CLIENT_SECRET}
       JOBBOOST_API_URL: http://api:8080
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
     volumes:
       - n8n_data:/home/node/.n8n
     depends_on:

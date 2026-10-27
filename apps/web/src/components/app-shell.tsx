@@ -1,4 +1,6 @@
 'use client';
+import LogoutButton from './logout-button';
+import OnboardingBar from './onboarding-bar';
 
 import {
   BriefcaseBusiness,
@@ -1294,6 +1296,8 @@ export default function AppShell({
 
               </button>
 
+              <LogoutButton />
+
               {/* SEPARATOR */}
 
               <div
@@ -1380,6 +1384,7 @@ export default function AppShell({
         {/* PAGE */}
 
         <div className="app-content">
+          <OnboardingBar />
           {
             children
           }

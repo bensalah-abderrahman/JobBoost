@@ -38,6 +38,14 @@ import {
   DashboardModule,
 } from './dashboard/dashboard.module.js';
 
+import {
+  AuthModule,
+} from './auth/auth.module.js';
+
+import {
+  OnboardingModule,
+} from './onboarding/onboarding.module.js';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -45,6 +53,10 @@ import {
     }),
 
     PrismaModule,
+
+    AuthModule,
+
+    OnboardingModule,
 
     ProfileModule,
 

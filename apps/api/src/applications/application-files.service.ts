@@ -99,6 +99,13 @@ export class ApplicationFilesService {
       process.env.API_URL ??
       'http://127.0.0.1:3001';
 
+    const internalHeaders = {
+      'x-internal-key':
+        process.env.INTERNAL_API_KEY ?? '',
+      'x-user-id':
+        this.prisma.currentUserId,
+    };
+
     const [
       resumeResponse,
       coverLetterResponse,
@@ -106,9 +113,11 @@ export class ApplicationFilesService {
       await Promise.all([
         fetch(
           `${apiUrl}/resume/${application.resumeId}/pdf`,
+          { headers: internalHeaders },
         ),
         fetch(
           `${apiUrl}/cover-letter/${application.coverLetterId}/pdf`,
+          { headers: internalHeaders },
         ),
       ]);
 

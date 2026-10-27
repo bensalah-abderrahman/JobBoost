@@ -80,6 +80,7 @@ export class LeverService {
       const job = await this.prisma.job.upsert({
         where: {
           source_externalId: {
+            userId: this.prisma.currentUserId,
             source: 'LEVER',
             externalId: offer.id,
           },

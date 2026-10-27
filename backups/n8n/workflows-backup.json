@@ -54,7 +54,16 @@
       "parameters": {
         "method": "POST",
         "url": "={{ $env.JOBBOOST_API_URL + '/llm/jobs/' + $json.job.id + '/analyze' }}",
-        "options": {}
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-internal-key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            }
+          ]
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
@@ -341,6 +350,10 @@
             {
               "name": "Accept",
               "value": "application/json"
+            },
+            {
+              "name": "x-internal-key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
             }
           ]
         },
@@ -395,7 +408,16 @@
       "parameters": {
         "method": "POST",
         "url": "={{ $env.JOBBOOST_API_URL + '/jobs/' + $json.job.id + '/ready-to-validate' }}",
-        "options": {}
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-internal-key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            }
+          ]
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
@@ -422,7 +444,16 @@
     {
       "parameters": {
         "url": "={{ $env.JOBBOOST_API_URL }}/jobs",
-        "options": {}
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-internal-key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            }
+          ]
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
@@ -471,7 +502,16 @@
       "parameters": {
         "method": "POST",
         "url": "={{ $env.JOBBOOST_API_URL + '/applications/jobs/' + $json.job.id + '/prepare' }}",
-        "options": {}
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-internal-key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            }
+          ]
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,

@@ -543,6 +543,7 @@ export class FranceTravailService {
         await this.prisma.job.upsert({
           where: {
             source_externalId: {
+              userId: this.prisma.currentUserId,
               source:
                 'FRANCE_TRAVAIL',
 

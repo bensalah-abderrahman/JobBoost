@@ -1,8 +1,13 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
 } from '@nestjs/common';
+
+import {
+  userContext,
+} from '../prisma/prisma.service.js';
 
 import nodemailer, {
   Transporter,
@@ -110,9 +115,51 @@ export class MailService {
   // SEND APPLICATION
   // ============================================================
 
+  async sendVerificationEmail(
+    to: string,
+    firstName: string,
+    link: string,
+  ) {
+    const transporter =
+      this.getTransporter();
+
+    const fromName =
+      process.env.SMTP_FROM_NAME ??
+      'JobBoost AI';
+
+    await transporter.sendMail({
+      from: `"${fromName}" <${process.env.SMTP_USER}>`,
+      to,
+      subject:
+        'Confirmez votre adresse email - JobBoost AI',
+      text:
+        `Bonjour ${firstName},\n\n` +
+        'Pour activer votre compte JobBoost AI, ouvrez ce lien ' +
+        '(valable 24 heures) :\n\n' +
+        `${link}\n\n` +
+        "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.",
+    });
+  }
+
   async sendApplicationEmail(
     input: SendApplicationEmailInput,
   ) {
+    // Les envois partent de la boîte SMTP du propriétaire de l'instance :
+    // ils lui sont réservés.
+    const owner =
+      process.env.ADMIN_EMAIL
+        ?.trim()
+        .toLowerCase();
+
+    if (
+      !owner ||
+      userContext.getStore()?.email !== owner
+    ) {
+      throw new ForbiddenException(
+        "L'envoi par email est réservé au propriétaire de l'application. Utilisez « Télécharger CV » et « Télécharger lettre ».",
+      );
+    }
+
     const to =
       input.to
         ?.trim()
@@ -321,6 +368,13 @@ export class MailService {
             headers: {
               Accept:
                 'application/pdf',
+              'x-internal-key':
+                process.env
+                  .INTERNAL_API_KEY ??
+                '',
+              'x-user-id':
+                userContext.getStore()
+                  ?.userId ?? '',
             },
           },
         );

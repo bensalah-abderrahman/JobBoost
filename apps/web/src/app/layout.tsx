@@ -4,8 +4,8 @@ import type {
 
 import './globals.css';
 
-import AppShell
-  from '../components/app-shell';
+import ShellGate
+  from '../components/shell-gate';
 
 export const metadata:
   Metadata = {
@@ -63,11 +63,11 @@ export default function RootLayout({
       </head>
 
       <body>
-        <AppShell>
+        <ShellGate>
           {
             children
           }
-        </AppShell>
+        </ShellGate>
       </body>
     </html>
   );
