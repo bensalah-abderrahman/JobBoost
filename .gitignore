@@ -31,3 +31,5 @@ Thumbs.db
 
 # Local tooling
 skills-lock.json
+*.tsbuildinfo
+cv-test*.pdf
