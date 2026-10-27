@@ -1,4 +1,5 @@
 'use client';
+import AdminLink from './admin-link';
 import LogoutButton from './logout-button';
 import OnboardingBar from './onboarding-bar';
 
@@ -1296,6 +1297,7 @@ export default function AppShell({
 
               </button>
 
+              <AdminLink />
               <LogoutButton />
 
               {/* SEPARATOR */}

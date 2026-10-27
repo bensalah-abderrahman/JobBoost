@@ -16,7 +16,34 @@ import { hashPassword, verifyPassword } from './password.util.js';
 export type AuthUser = {
   id: string;
   email: string;
+  role: string;
+  canCollect: boolean;
+  canSendEmail: boolean;
+  credits: number;
 };
+
+type UserRow = {
+  id: string;
+  email: string;
+  role: string;
+  canCollect: boolean;
+  canSendEmail: boolean;
+  credits: number;
+};
+
+function toAuthUser(user: UserRow): AuthUser {
+  const admin = user.role === 'ADMIN';
+
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    // L'administrateur dispose de toutes les autorisations.
+    canCollect: admin || user.canCollect,
+    canSendEmail: admin || user.canSendEmail,
+    credits: user.credits,
+  };
+}
 
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_FAILED_ATTEMPTS = 8;
@@ -70,6 +97,7 @@ export class AuthService implements OnModuleInit {
 
   private async createFirstUserIfNeeded() {
     if ((await this.prisma.user.count()) > 0) {
+      await this.ensureOwnerIsAdmin();
       return;
     }
 
@@ -95,10 +123,25 @@ export class AuthService implements OnModuleInit {
         email,
         passwordHash: await hashPassword(password),
         emailVerifiedAt: new Date(),
+        role: 'ADMIN',
       },
     });
 
     this.logger.log(`Premier compte créé : ${email}`);
+  }
+
+  // Le compte ADMIN_EMAIL est toujours administrateur.
+  private async ensureOwnerIsAdmin() {
+    const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+
+    if (!email) {
+      return;
+    }
+
+    await this.prisma.user.updateMany({
+      where: { email, role: { not: 'ADMIN' } },
+      data: { role: 'ADMIN' },
+    });
   }
 
   // ============================================================
@@ -132,6 +175,12 @@ export class AuthService implements OnModuleInit {
       );
     }
 
+    if (user.disabledAt) {
+      throw new ForbiddenException(
+        "Ce compte est désactivé. Contactez l'administrateur.",
+      );
+    }
+
     this.failedAttempts.delete(key);
 
     const { token, expiresAt } = await this.createSession(user.id);
@@ -139,7 +188,7 @@ export class AuthService implements OnModuleInit {
     return {
       token,
       expiresAt,
-      user: { id: user.id, email: user.email },
+      user: toAuthUser(user),
     };
   }
 
@@ -179,6 +228,12 @@ export class AuthService implements OnModuleInit {
   }) {
     const email = profile.email.trim().toLowerCase();
     const existing = await this.prisma.user.findUnique({ where: { email } });
+
+    if (existing?.disabledAt) {
+      throw new ForbiddenException(
+        "Ce compte est désactivé. Contactez l'administrateur.",
+      );
+    }
 
     if (existing) {
       // Un compte créé par mot de passe mais jamais confirmé pourrait
@@ -367,7 +422,7 @@ export class AuthService implements OnModuleInit {
       ? await this.prisma.user.findUnique({ where: { id: userId } })
       : await this.findOwner();
 
-    return user ? { id: user.id, email: user.email } : null;
+    return user && !user.disabledAt ? toAuthUser(user) : null;
   }
 
   private async findOwner() {
@@ -394,14 +449,15 @@ export class AuthService implements OnModuleInit {
       include: { user: true },
     });
 
-    if (!session || session.expiresAt.getTime() <= Date.now()) {
+    if (
+      !session ||
+      session.expiresAt.getTime() <= Date.now() ||
+      session.user.disabledAt
+    ) {
       return null;
     }
 
-    return {
-      id: session.user.id,
-      email: session.user.email,
-    };
+    return toAuthUser(session.user);
   }
 
   async logout(token: string) {

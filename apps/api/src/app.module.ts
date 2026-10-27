@@ -46,6 +46,10 @@ import {
   OnboardingModule,
 } from './onboarding/onboarding.module.js';
 
+import {
+  AdminModule,
+} from './admin/admin.module.js';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -57,6 +61,8 @@ import {
     AuthModule,
 
     OnboardingModule,
+
+    AdminModule,
 
     ProfileModule,
 

@@ -7,6 +7,9 @@ import { isScopedModel, scopeArgs } from './scope.js';
 export type UserContext = {
   userId: string;
   email: string;
+  role?: string;
+  canCollect?: boolean;
+  canSendEmail?: boolean;
 };
 
 /**

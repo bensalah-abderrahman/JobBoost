@@ -28,5 +28,6 @@ import {
      WebSearchCollectorService,
      AutomationService,
   ],
+  exports: [AutomationService],
 })
 export class JobsModule {}

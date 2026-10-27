@@ -7,24 +7,34 @@ import {
 import {
   userContext,
 } from '../../prisma/prisma.service.js';
+import {
+  isAdmin,
+  requirePermission,
+} from '../../auth/permissions.js';
 
 @Injectable()
 export class AutomationService {
-  async runFranceTravail() {
-    // La collecte tourne dans n8n pour le propriétaire de l'instance.
-    const owner =
-      process.env.ADMIN_EMAIL
-        ?.trim()
-        .toLowerCase();
+  /**
+   * @param forUserId  réservé à l'administrateur : lance la collecte
+   *                   pour le compte d'un autre utilisateur.
+   */
+  async runFranceTravail(forUserId?: string) {
+    const current = userContext.getStore();
 
-    if (
-      !owner ||
-      userContext.getStore()?.email !== owner
-    ) {
-      throw new ForbiddenException(
-        "La collecte automatique est réservée au propriétaire de l'application.",
+    if (forUserId && forUserId !== current?.userId) {
+      if (!isAdmin()) {
+        throw new ForbiddenException(
+          "Seul l'administrateur peut lancer la collecte pour un autre compte.",
+        );
+      }
+    } else {
+      requirePermission(
+        'canCollect',
+        "La collecte automatique n'est pas activée pour votre compte. Demandez l'autorisation à l'administrateur.",
       );
     }
+
+    const targetUserId = forUserId ?? current?.userId;
 
     const webhookUrl =
       process.env.N8N_JOBBOOST_WEBHOOK_URL ??
@@ -42,6 +52,10 @@ export class AutomationService {
             'JOBBOOST_UI',
           automation:
             'FRANCE_TRAVAIL',
+          // n8n transmet cet identifiant (x-user-id) à chaque appel API :
+          // les offres arrivent dans le compte demandé.
+          userId:
+            targetUserId,
           requestedAt:
             new Date().toISOString(),
         }),

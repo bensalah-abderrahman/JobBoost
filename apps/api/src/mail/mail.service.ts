@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   InternalServerErrorException,
 } from '@nestjs/common';
@@ -8,6 +7,7 @@ import {
 import {
   userContext,
 } from '../prisma/prisma.service.js';
+import { requirePermission } from '../auth/permissions.js';
 
 import nodemailer, {
   Transporter,
@@ -145,20 +145,11 @@ export class MailService {
     input: SendApplicationEmailInput,
   ) {
     // Les envois partent de la boîte SMTP du propriétaire de l'instance :
-    // ils lui sont réservés.
-    const owner =
-      process.env.ADMIN_EMAIL
-        ?.trim()
-        .toLowerCase();
-
-    if (
-      !owner ||
-      userContext.getStore()?.email !== owner
-    ) {
-      throw new ForbiddenException(
-        "L'envoi par email est réservé au propriétaire de l'application. Utilisez « Télécharger CV » et « Télécharger lettre ».",
-      );
-    }
+    // l'administrateur doit les autoriser compte par compte.
+    requirePermission(
+      'canSendEmail',
+      "L'envoi par email n'est pas activé pour votre compte. Utilisez « Télécharger CV » et « Télécharger lettre », ou demandez l'autorisation à l'administrateur.",
+    );
 
     const to =
       input.to

@@ -308,6 +308,15 @@ model User {
   verifyTokenHash     String?   @unique
   verifyTokenExpires  DateTime?
 
+  // Administration : USER ou ADMIN (le propriétaire).
+  role         String    @default("USER")
+  // Autorisations accordées par l'administrateur (phase de test).
+  canCollect   Boolean   @default(false)
+  canSendEmail Boolean   @default(false)
+  // Réservé à la version premium : jetons consommables.
+  credits      Int       @default(0)
+  disabledAt   DateTime?
+
   sessions     Session[]
   profile      CandidateProfile?
   jobs         Job[]
