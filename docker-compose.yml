@@ -23,7 +23,9 @@ services:
     restart: unless-stopped
     working_dir: /app
     command: >
-      sh -c "corepack enable &&
+      sh -c "apt-get update &&
+      apt-get install -y --no-install-recommends chromium fonts-liberation &&
+      corepack enable &&
       pnpm install --frozen-lockfile &&
       pnpm --dir apps/api start:dev"
     ports:
@@ -33,6 +35,10 @@ services:
       PORT: "8080"
       DATABASE_URL: postgresql://${POSTGRES_USER:-jobboost}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-jobboost}?schema=public
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      API_URL: http://127.0.0.1:8080
+      JOBBOOST_API_URL: http://127.0.0.1:8080
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+      PUPPETEER_SKIP_DOWNLOAD: "true"
     volumes:
       - ./:/app
       - api_node_modules:/app/node_modules
@@ -42,7 +48,6 @@ services:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
   web:
     image: node:24-bookworm
     container_name: jobboost-web
