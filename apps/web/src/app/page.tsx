@@ -52,11 +52,15 @@ type Profile = {
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
   useEffect(() => {
     async function loadProfile() {
       try {
-        const response = await fetch('http://localhost:3001/profile');
+        const response = await fetch(
+  `${API_URL}/profile`
+);
 
         if (!response.ok) {
           throw new Error('Erreur lors du chargement du profil');

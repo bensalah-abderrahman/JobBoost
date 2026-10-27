@@ -41,7 +41,7 @@ import type {
 } from '../../components/dashboard/dashboard.types';
 
 const API_URL =
-  'http://localhost:3001';
+  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
 export default function DashboardPage() {
   const [
