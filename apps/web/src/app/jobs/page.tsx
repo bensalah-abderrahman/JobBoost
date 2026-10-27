@@ -26,7 +26,8 @@ import PreparationModal
 import {
   useJobsPage,
 } from '../../components/jobs/useJobsPage';
-const API_URL = 'http://localhost:3001';
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 export default function JobsPage() {
   // ============================================================
   // JOBS STATE
